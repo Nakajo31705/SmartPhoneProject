@@ -1,6 +1,9 @@
 #include "DxLib.h"
 #include "math.h"
 
+int screenW = 720;  //画面の幅
+int screenH = 1280; //画面の高さ
+
 ///タッチ入力の座標を表す構造体
 struct TouchPoint
 {
@@ -186,53 +189,57 @@ void UpdateMobileInput(MobileInput* input)
     }
 }
 
-///タッチ入力の状態を画面に表示するデバッグ用関数
-void DrawInputDebug(const MobileInput& input)
+///プレイヤーの構造体
+struct Player
 {
-    //基本情報を表示
-    DrawFormatString(20,20,GetColor(255,255,255),"TouchCount : %d", input.touchCount);
-    DrawFormatString(20,50,GetColor(255,255,255),"Current : %d, %d", input.currentX, input.currentY);
-    DrawFormatString(20,80,GetColor(255,255,255),"Start : %d, %d", input.startX, input.startY);
+    int x;
+    int y;
+    int size;
+};
 
-    //入力情報を表示
-    if(input.tap)
-    {
-        DrawString(20,140,"Tap", GetColor(255,255,0));
-    }
+///プレイヤーのサイズを初期化
+void InitPlayer(Player* player)
+{
+    player->x = screenW / 2 - 50;
+    player->y = screenH - 200;
+    player->size = 100;
+}
 
-    if(input.swipe)
-    {
-        DrawString(20,170,"Swipe", GetColor(0,255,255));
-    }
+///プレイヤーを表示(Box)
+void PlayerDraw(const Player* player)
+{
+    DrawBox(
+            player->x,
+            player->y,
+            player->x + player->size,
+            player->y + player->size,
+            GetColor(0,0,255),
+            TRUE
+            );
+}
 
-    if(input.flick)
+void PlayerControl(Player* player, MobileInput* input)
+{
+    if(input->tap)
     {
-        DrawString(20,200,"Flick", GetColor(255,120,0));
-    }
-
-    if(input.pinchIn)
-    {
-        DrawString(20,230,"Pinch In", GetColor(255,100,255));
-    }
-
-    if(input.pinchOut)
-    {
-        DrawString(20,260,"pinch Out", GetColor(100,255,100));
-    }
-
-    //タッチ中の軌跡を表示
-    if(input.isTouching)
-    {
-        DrawCircle(input.currentY,input.currentY, 20,  GetColor(255,255,255), TRUE);
-        DrawLine(input.startX, input.startY, input.currentX, input.currentY,GetColor(255,255,0));
+        player->x = input->currentX;
+        player->y = input->currentY;
     }
 }
 
-///ここから始まります
+///描画処理
+void Draw()
+{
+    //レーンの表示
+    DrawLine(100, 0, 100, screenH, GetColor(255,255,255), 0);
+    DrawLine(screenW / 2, 0, screenW / 2, screenH, GetColor(255,255,255), 0);
+    DrawLine(screenW - 100, 0, screenW - 100, screenH, GetColor(255,255,255), 0);
+}
+
 int android_main()
 {
     //画面サイズの設定
-    SetGraphMode(720,1280,32);
+    SetGraphMode(screenW,screenH,32);
 
     //DxLibの初期化
     if(DxLib_Init() == -1)
@@ -243,8 +250,10 @@ int android_main()
     //裏画面に表示するようにする
     SetDrawScreen(DX_SCREEN_BACK);
 
-    //画面サイズに応じたUIレイアウトを作成して取得
+    Player player;
     MobileInput input;
+
+    InitPlayer(&player);
     InitMobileInput(&input);
 
     //メインループ
@@ -252,11 +261,11 @@ int android_main()
     {
         ClearDrawScreen();
 
+        Draw();
         UpdateMobileInput(&input);
-        DrawInputDebug(input);
 
-        DrawLine(100, 0, 100, 300, GetColor(255,255,255), 0);
-
+        PlayerDraw(&player);
+        PlayerControl(&player, &input);
         ScreenFlip();
     }
 
