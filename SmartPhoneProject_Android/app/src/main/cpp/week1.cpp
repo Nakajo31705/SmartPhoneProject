@@ -1,15 +1,19 @@
 #include "DxLib.h"
 #include "math.h"
+#include "string.h"
+
 
 int screenW = 720;  //画面の幅
 int screenH = 1280; //画面の高さ
 
+///エネミー生成座標の構造体
 struct SpawnPoint
 {
     int x;
     int y;
 };
 
+///生成座標を登録
 SpawnPoint spawn[3] =
         {
                 {screenW / 2, 0},
@@ -25,12 +29,22 @@ struct MovePoint
     int y;
 };
 
+///プレイヤーの移動可能な座標を登録
 MovePoint points[3] =
         {
                 {screenW / 2, screenH - 200},
                 {100, screenH - 200},
                 {screenW - 100, screenH -200}
         };
+
+///当たり判定の構造体
+struct HitBox
+{
+    int x;
+    int y;
+    int width;
+    int height;
+};
 
 //////////////////////////////////////////
 //  タッチ操作関係
@@ -237,6 +251,7 @@ struct Enemy
     int width;
     int height;
     bool active;
+    HitBox hitbox;
 };
 
 const int Max_Enemies = 2;
@@ -258,6 +273,11 @@ void SpawnEnemy()
 
             enemies[i].active = true;
 
+            enemies[i].hitbox.x = spawn[index].x;
+            enemies[i].hitbox.y = spawn[index].y + 200;
+            enemies[i].hitbox.width = 50;
+            enemies[i].hitbox.height = 50;
+
             break;
         }
     }
@@ -277,6 +297,18 @@ void DrawEnemy()
                 GetColor(255,0,0),
                 true
                 );
+
+        //HitBoxのデバッグ
+        /*
+        DrawBox(
+                enemies[i].hitbox.x - enemies[i].width,
+                enemies[i].hitbox.y - enemies[i].height,
+                enemies[i].hitbox.x + enemies[i].width,
+                enemies[i].hitbox.y + enemies[i].height,
+                GetColor(0,255,0),
+                FALSE
+        );
+        */
     }
 }
 
@@ -289,6 +321,7 @@ void EnemyUpdate()
 
         //下方向に移動
         enemies[i].y += 6.0f;
+        enemies[i].hitbox.y += 6.0f;
 
         if(enemies[i].y > 1350)
         {
@@ -308,14 +341,23 @@ struct Player
     int x;
     int y;
     int size;
+
+    HitBox hitbox;
 };
 
-///プレイヤーのサイズを初期化
+///プレイヤーのサイズと当たり判定を初期化
 void InitPlayer(Player* player)
 {
+    //サイズの初期化
     player->x = screenW / 2;
     player->y = screenH - 200;
     player->size = 50;
+
+    //当たり判定の初期化
+    player->hitbox.x = player->x;
+    player->hitbox.y = player->y;
+    player->hitbox.width = player->size;
+    player->hitbox.height = player->size;
 }
 
 ///プレイヤーを表示(Box)
@@ -329,6 +371,18 @@ void PlayerDraw(const Player* player)
             GetColor(0,0,255),
             TRUE
             );
+
+    //HitBoxのデバッグ
+    /*DrawBox(
+            player->hitbox.x - player->size,
+            player->hitbox.y - player->size,
+            player->hitbox.x + player->size,
+            player->hitbox.y + player->size,
+            GetColor(255,0,0),
+            FALSE
+    );
+     */
+
 }
 
 ///プレイヤーの移動処理
@@ -355,6 +409,12 @@ void PlayerControl(Player* player, MobileInput* input)
         //一番近い移動ポイントに移動
         player->x = points[nearestIndex].x;
         player->y = points[nearestIndex].y;
+
+        //移動時に当たり判定も同時に移動する
+        player->hitbox.x = points[nearestIndex].x;
+        player->hitbox.y = points[nearestIndex].y;
+        player->hitbox.width = player->size;
+        player->hitbox.height = player->size;
     }
 }
 
@@ -368,28 +428,45 @@ void Draw()
 }
 
 ///当たり判定の関数
-bool CheckHit(int x1, int y1, int size1, int x2, int y2, int size2)
+bool CheckHit(const Player& player, const Enemy& enemy)
 {
-    int half1 = size1 / 2;
-    int half2 = size2 / 2;
-
-    if(x1 + half1 < x2 - half2) return false;//1が左
-    if(x1 - half1 > x2 + half2) return false;//1が右
-    if(y1 + half1 < y2 - half2) return false;//1が上
-    if(y1 - half1 > y2 - half2) return false;//1が下
-
-    //当たっている
-    return true;
+    return (
+            player.hitbox.x < enemy.hitbox.x + enemy.hitbox.width &&
+            player.hitbox.x + player.hitbox.width > enemy.hitbox.x &&
+            player.hitbox.y < enemy.hitbox.y + enemy.hitbox.height &&
+            player.hitbox.y + player.hitbox.height > enemy.hitbox.y
+            );
 }
 
 Player player;
 MobileInput input;
 MovePoint point;
 
+bool isGameOver = false;
+
+///ゲームリセット
+void ReStart()
+{
+    if(isGameOver && input.tap)
+    {
+        isGameOver = false;
+        InitPlayer(&player);
+        for(int i = 0; i < Max_Enemies; i++)
+        {
+            enemies[i].active = false;
+            SpawnEnemy();
+        }
+    }
+}
+
 //ゲームのUpdate
 void UpdateGame()
 {
+    ReStart();
     UpdateMobileInput(&input);
+
+    if(isGameOver) return;
+
     PlayerControl(&player, &input);
     EnemyUpdate();
     SpawnEnemy();
@@ -398,9 +475,29 @@ void UpdateGame()
 //ゲームのDraw
 void DrawGame()
 {
-    DrawEnemy();
+    for(int i = 0; i < Max_Enemies; i++)
+    {
+        if(CheckHit(player, enemies[i]))
+        {
+            const char* msg1 = "GameOver";
+            const char* msg2 = "Tap to ReStart";
+
+            int w1 = GetDrawStringWidth(msg1, strlen(msg1));
+            int w2 = GetDrawStringWidth(msg2, strlen(msg2));
+
+            DrawFormatString(screenW / 2 - w1 / 2, screenH / 2, GetColor(255,0,0), msg1);
+            DrawFormatString(screenW / 2 - w2 / 2, screenH / 2 + 50, GetColor(255,255,255), msg2);
+            isGameOver = true;
+        }
+    }
+
+    if(isGameOver) return;
     Draw();
+    DrawEnemy();
     PlayerDraw(&player);
+
+
+
 }
 
 int android_main()
