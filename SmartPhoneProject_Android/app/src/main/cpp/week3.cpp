@@ -6,9 +6,10 @@
 
 int screenW = 720;  //画面の幅
 int screenH = 1280; //画面の高さ
+int margin = 100;   //画面の余白(敵の生成範囲用)
 bool isHit = false;
 bool isWait = true;
-float waitTime = 1.0;
+float waitTime = 90.0;
 float waitTimer = 0.0;
 int playerLife = 3;
 
@@ -241,29 +242,66 @@ struct Enemy
     float x;
     float y;
     float radius;
-    int HP;
+    bool isAlive;
+    int speed;
 };
 
 //////////////////////////////////
 //エネミー関係
 //////////////////////////////////
 
-int enemiesCount;
-std::vector<Enemy> enemies;
+const int enemiesMax = 100;
+Enemy enemies[enemiesMax];
+int spawnTimer = 240;
+int spawnInterval = 240;
+
+
 
 void SpawnEnemy()
 {
+    for (int i = 0; i < enemiesMax; i++)
+    {
+        if(enemies[i].isAlive)
+            continue;
 
+        enemies[i].isAlive = true;
+
+        enemies[i].x = GetRand(screenW - margin * 2) + margin;
+        enemies[i].y = -100;
+        enemies[i].radius = 32;
+        enemies[i].speed = 2;
+
+        break;
+    }
+}
+
+void EnemyTimer()
+{
+    spawnTimer++;
+    if(spawnTimer > spawnInterval)
+    {
+        spawnTimer = 0;
+        SpawnEnemy();
+    }
+}
+
+void EnemyMove()
+{
+    for(int i = 0; i < enemiesMax; i++)
+    {
+        enemies[i].y += enemies[i].speed;
+    }
 }
 
 void EnemyDead(int index)
 {
-
+    //倒されたらfalseにする
+    //enemies[i].isAlive = false;
 }
 
 void DrawEnemy()
 {
-    for(int i = 0; i < enemiesCount; i++) {
+    for(int i = 0; i < enemiesMax; i++) {
         DrawCircle(
                 enemies[i].x,
                 enemies[i].y,
@@ -299,8 +337,9 @@ void PlayerControl(Player* player, MobileInput* input)
             float dx = input->currentX - input->startX;
             float dy = input->currentY - input->startY;
 
-            player->velocity.x = dx / 10;
-            player->velocity.y = dy / 10;
+            player->velocity.x = dx / 8;
+            player->velocity.y = dy / 8;
+            isWait = false;
         }
     }
 }
@@ -316,7 +355,7 @@ void PlayerMove(Player* player)
 ///敵との接触処理
 void CheckEnemyCollision(Player* player)
 {
-    for(int i = 0; i < enemiesCount; i++)
+    for(int i = 0; i < enemiesMax; i++)
     {
         float dx = player->position.x - enemies[i].x;
         float dy = player->position.y - enemies[i].y;
@@ -330,9 +369,18 @@ void CheckEnemyCollision(Player* player)
     }
 }
 
-void CreatePlayer()
+void ResetPlayer(Player *player)
 {
-
+    if(!isWait)
+    {
+        waitTimer++;
+        if(waitTimer > waitTime)
+        {
+            isWait = true;
+            waitTimer = 0;
+            InitPlayer(player);
+        }
+    }
 }
 
 ///プレイヤーの表示
@@ -374,10 +422,7 @@ void ReStart()
 ///ゲームの状態を確認する関数
 void GameManager()
 {
-    if(enemiesCount == 0)
-    {
-        isGameClear = true;
-    }
+    //isGameClear = true;
 
     if(playerLife == 0)
     {
@@ -395,17 +440,12 @@ void UpdateGame()
     if(isGameOver || isGameClear) return;
 
     //GameManager();
+    ResetPlayer(&player);
     PlayerControl(&player, &input);
     PlayerMove(&player);
     CheckEnemyCollision(&player);
-    //エネミーの死亡処理
-    for(int i = enemiesCount -1; i >= 0; i--)
-    {
-        if(enemies[i].HP <= 0)
-        {
-            EnemyDead(i);
-        }
-    }
+    EnemyTimer();
+    EnemyMove();
 }
 
 ///ゲームのDraw
@@ -462,7 +502,6 @@ int android_main()
     //初期化関数を呼ぶところ
     InitPlayer(&player);
     InitMobileInput(&input);
-    SpawnEnemy();
 
     //メインループ
     while(ProcessMessage() == 0)
