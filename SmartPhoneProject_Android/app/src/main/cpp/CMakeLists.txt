@@ -34,7 +34,7 @@ add_library( # Sets the name of the library.
         SHARED
 
         # Provides a relative path to your source file(s).
-        week2.cpp
+        week3.cpp
 )
 
 find_library(

@@ -6,10 +6,13 @@
 
 int screenW = 720;  //画面の幅
 int screenH = 1280; //画面の高さ
-bool isWait = true;
 bool isHit = false;
-int hitEnemyIndex = -1;
-int playCount;      //プレイヤーの行動回数
+bool isWait = true;
+float waitTime = 1.0;
+float waitTimer = 0.0;
+int playerLife = 3;
+
+
 
 //////////////////////////////////////////
 //  タッチ操作関係
@@ -250,53 +253,12 @@ std::vector<Enemy> enemies;
 
 void SpawnEnemy()
 {
-    enemiesCount = 3;
-    enemies.resize(enemiesCount);
 
-    for (int i = 0; i < enemiesCount; i++)
-    {
-        if(i == 0)
-        {
-            enemies[i].x = 200;
-            enemies[i].y = 300;
-            enemies[i].radius = 50;
-            enemies[i].HP = 3;
-        }
-        if(i == 1)
-        {
-            enemies[i].x = screenW - 200;
-            enemies[i].y = 300;
-            enemies[i].radius = 50;
-            enemies[i].HP = 3;
-        }
-        if(i == 2)
-        {
-            enemies[i].x = screenW / 2;
-            enemies[i].y = screenH / 2;
-            enemies[i].radius = 50;
-            enemies[i].HP = 5;
-        }
-    }
-}
-
-///敵がダメージを受ける処理
-void EnemyTakeDamage()
-{
-    if(isHit)
-    {
-        enemies[hitEnemyIndex].HP -= 1;
-        isHit =false;
-        hitEnemyIndex = -1;
-    }
 }
 
 void EnemyDead(int index)
 {
-    for(int i = index; i < enemiesCount -1; i++)
-    {
-        enemies[i] = enemies[i + 1];
-    }
-    enemiesCount--;
+
 }
 
 void DrawEnemy()
@@ -310,8 +272,6 @@ void DrawEnemy()
                 TRUE,
                 1
         );
-
-        DrawFormatString(100, 100 + i * 20, GetColor(255,255,255), "EnemyHP=%d", enemies[i].HP);
     }
 }
 
@@ -327,7 +287,6 @@ void InitPlayer(Player* player)
     player->radius = 35;
     player->velocity = {0.0,0.0};
     player->friction = 0.98;
-    playCount = 10;
 }
 
 ///プレイヤーの動作処理
@@ -340,11 +299,8 @@ void PlayerControl(Player* player, MobileInput* input)
             float dx = input->currentX - input->startX;
             float dy = input->currentY - input->startY;
 
-            player->velocity.x = -dx / 10;
-            player->velocity.y = -dy / 10;
-
-            isWait = false;
-            playCount--;
+            player->velocity.x = dx / 10;
+            player->velocity.y = dy / 10;
         }
     }
 }
@@ -352,64 +308,9 @@ void PlayerControl(Player* player, MobileInput* input)
 ///プレイヤーの移動処理
 void PlayerMove(Player* player)
 {
-    if(!isWait)
-    {
-        //移動処理
-        player->position.x += player->velocity.x;
-        player->position.y += player->velocity.y;
-
-        //左端
-        if(player->position.x < player->radius)
-        {
-            player->position.x = player->radius;
-
-            player->velocity.x *= -1;
-        }
-
-        //右端
-        if(player->position.x > screenW - player->radius)
-        {
-            player->position.x = screenW - player->radius;
-            player->velocity.x *= -1;
-        }
-
-        //上
-        if(player->position.y < player->radius)
-        {
-            player->position.y = player->radius;
-            player->velocity.y *= -1;
-        }
-
-        //下
-        if(player->position.y > screenH - player->radius)
-        {
-            player->position.y = screenH - player->radius;
-            player->velocity.y *= -1;
-        }
-    }
-}
-
-///プレイヤーの摩擦処理
-void PlayerFriction(Player* player)
-{
-    //減速処理
-    player->velocity.x *= player->friction;
-    player->velocity.y *= player->friction;
-
-    //完全停止判定
-    float speed = sqrtf(
-            player->velocity.x * player->velocity.x
-            + player->velocity.y * player->velocity.y
-    );
-
-    //速度が一定以下になったら停止する
-    if(speed < 0.8)
-    {
-        player->velocity.x = 0;
-        player->velocity.y = 0;
-
-        isWait = true;
-    }
+    //移動処理
+    player->position.x += player->velocity.x;
+    player->position.y += player->velocity.y;
 }
 
 ///敵との接触処理
@@ -423,37 +324,15 @@ void CheckEnemyCollision(Player* player)
         float distance = sqrtf(dx * dx + dy * dy);
 
         //敵とプレイヤーの半径の合計よりdistanceが小さいなら接触
-        if(distance < player->radius + enemies[i].radius)
-        {
-            hitEnemyIndex = i;
+        if(distance < player->radius + enemies[i].radius) {
             isHit = true;
-            EnemyTakeDamage();
-
-            //0除算防止
-            if (distance == 0)
-                return;
-
-            //敵→プレイヤーの方向を正規化
-            float normalX = dx / distance;
-            float normalY = dy / distance;
-
-            //現在の速度を取得
-            float speed = sqrtf(
-                    player->velocity.x * player->velocity.x
-                    + player->velocity.y * player->velocity.y
-            );
-
-            //反射方向へ速度変更
-            player->velocity.x = normalX * speed;
-            player->velocity.y = normalY * speed;
-
-            //めり込み対策
-            float overlap = player->radius + enemies[i].radius - distance;
-
-            player->position.x += normalX * overlap;
-            player->position.y += normalY * overlap;
         }
     }
+}
+
+void CreatePlayer()
+{
+
 }
 
 ///プレイヤーの表示
@@ -466,9 +345,9 @@ void DrawPlayer(Player* player)
             GetColor(255,255,255),
             TRUE,
             1
-            );
+    );
 
-    DrawFormatString(100,0, GetColor(255,255,255), "行動回数:%d", playCount);
+    DrawFormatString(100,0, GetColor(255,255,255), "HP:%d", playerLife);
 }
 
 //////////////////////////////////
@@ -500,7 +379,7 @@ void GameManager()
         isGameClear = true;
     }
 
-    if(playCount == 0 && isWait)
+    if(playerLife == 0)
     {
         isGameOver = true;
     }
@@ -515,11 +394,10 @@ void UpdateGame()
     //ゲームオーバーorゲームクリア時ここより下を呼ばない
     if(isGameOver || isGameClear) return;
 
-    GameManager();
+    //GameManager();
     PlayerControl(&player, &input);
     PlayerMove(&player);
     CheckEnemyCollision(&player);
-    PlayerFriction(&player);
     //エネミーの死亡処理
     for(int i = enemiesCount -1; i >= 0; i--)
     {
